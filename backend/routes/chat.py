@@ -7,6 +7,7 @@ from typing import Any
 from flask import Blueprint, Response, request, stream_with_context, send_file
 from io import BytesIO
 import google.generativeai as genai
+from google.generativeai.types import GenerationConfig
 
 from config import Config
 from models import FUNCTION_TOOLS
@@ -138,7 +139,10 @@ def chat():
             model = genai.GenerativeModel(
                 model_name=Config.GEMINI_MODEL,
                 tools=FUNCTION_TOOLS,
-                system_instruction=SYSTEM_PROMPT
+                system_instruction=SYSTEM_PROMPT,
+                generation_config=GenerationConfig(
+                    temperature=0.0
+                )
             )
 
             # Get conversation history (exclude the current message)

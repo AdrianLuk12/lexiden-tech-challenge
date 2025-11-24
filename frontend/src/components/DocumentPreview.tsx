@@ -51,7 +51,7 @@ export default function DocumentPreview({ document, changes }: DocumentPreviewPr
         URL.revokeObjectURL(pdfUrl)
       }
     }
-  }, [document, changes])
+  }, [pdfUrl, document, changes])
 
   const handleDownload = () => {
     if (!document) return
