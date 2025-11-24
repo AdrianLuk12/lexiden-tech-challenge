@@ -1,0 +1,6 @@
+---
+alwaysApply: true
+---
+Rules:
+- You MUST always only use utf-8 encoding characters in all files.
+- You MUST NOT use any emojis or special characters in your code or chat unless it is explicitly specified as required.

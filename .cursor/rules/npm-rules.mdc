@@ -1,0 +1,6 @@
+---
+alwaysApply: true
+---
+Rules:
+- When installing npm packages or adding to package.json, you must use web search or npm to ensure it is the latest version unless otherwise specified by other library version requirements..
+- Before fininshing any npm related tasks, you must run 'npm run build' to ensure the code is built and ready to be used. Fix any errors that occur.

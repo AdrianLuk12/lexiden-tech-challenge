@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+Rules:
+- When creating a feature, write a concise overview of (how it works, how to use/test) in an appropriate file in ./docs/{feature}.md, create the file if it doesn't exist. You should update current docs if they already exist instead of creating a new file.
+- Update README.md and CLAUDE.md as you implement new features/functions or update existing ones, ensure that README and CLAUDE are up to date.
+- You MUST ensure all documentation is concise and easy to read quickly. It should still contain all necessary information for the feature/function. But avoid including unnecessary details or repeating information or code examples that are already covered in the code itself.
