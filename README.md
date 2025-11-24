@@ -2,7 +2,6 @@
 
 An AI-powered legal document generation system that uses streaming SSE responses, LLM function calling, and sophisticated prompt engineering to help users create professional legal documents through natural conversation.
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.13.5-blue.svg)
 ![Next.js](https://img.shields.io/badge/next.js-15.5.6-black.svg)
 
@@ -10,9 +9,9 @@ An AI-powered legal document generation system that uses streaming SSE responses
 
 This application demonstrates:
 
-1. **Server-Sent Events (SSE) Streaming (30%)** - Real-time token-by-token streaming of AI responses
-2. **LLM Function/Tool Calling (40%)** - Three sophisticated functions for information extraction, document generation, and editing
-3. **Strong System Prompts (30%)** - Carefully engineered prompts with edge case handling and context maintenance
+1. **Server-Sent Events (SSE) Streaming** - Real-time token-by-token streaming of AI responses
+2. **LLM Function/Tool Calling** - Three sophisticated functions for information extraction, document generation, and editing
+3. **Strong System Prompts** - Carefully engineered prompts with edge case handling and context maintenance
 
 ## 📁 Project Structure
 
@@ -35,31 +34,29 @@ lexiden-tech-challenge/
 
 ### Core Features (All Implemented)
 
-✅ **SSE Streaming**
+**SSE Streaming**
 - Real-time token-by-token streaming of LLM responses
 - Connection management and error recovery
 - Streams both conversational responses and document generation
 - Visual feedback with typing indicators
 
-✅ **Function Calling**
+**Function Calling**
 Three intelligent functions:
 1. **extract_information** - Extracts structured data from natural language
 2. **generate_document** - Creates complete legal documents
 3. **apply_edits** - Applies precise modifications to existing documents
 
-✅ **System Prompts**
+**System Prompts**
 - Comprehensive role definition
 - Clear function usage guidelines
 - Edge case handling
 - Context maintenance across conversation
 
-### Nice-to-Have Features (All Included)
-
-✅ **Structured Outputs** - Forced structured outputs through function calling
-✅ **Conversation Memory** - Context maintained across messages within a session
-✅ **Document Preview** - Live document preview with real-time updates
-✅ **Edit Highlighting** - Visual indication of changes
-✅ **Smooth UX** - Framer Motion animations and responsive design
+**Structured Outputs** - Forced structured outputs through function calling
+**Conversation Memory** - Context maintained across messages within a session
+**Document Preview** - Live document preview with real-time updates
+**Edit Highlighting** - Visual indication of changes
+**Smooth UX** - Framer Motion animations and responsive design
 
 ### Supported Document Types
 
@@ -95,7 +92,6 @@ Three intelligent functions:
 
 ### Design System
 - **Colors**: Light Red (#FCA5A5), Red (#EF4444), Deep Red (#991B1B)
-- **Theme**: Inspired by transparently.ai
 - **UI Style**: Clean, generous whitespace, rounded corners (xl), subtle shadows
 
 ## 📋 Prerequisites
@@ -103,14 +99,13 @@ Three intelligent functions:
 - **Python**: 3.13.5 or higher
 - **Node.js**: 18.x or higher
 - **npm**: 9.x or higher
-- **Gemini API Key**: Get one from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
 ## 🔧 Installation & Setup
 
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/AdrianLuk12/lexiden-tech-challenge.git
 cd lexiden-tech-challenge
 ```
 
@@ -145,6 +140,9 @@ npm install
 
 # Create .env.local file
 cp .env.local.example .env.local
+
+# Add your API URL to .env.local
+# NEXT_PUBLIC_API_URL=http://localhost:5001
 ```
 
 ## 🚀 Running the Application
@@ -156,7 +154,7 @@ cd backend
 python app.py
 ```
 
-Backend will run on `http://localhost:5000`
+Backend will run on `http://localhost:5001`
 
 ### Start Frontend Development Server
 
@@ -203,68 +201,6 @@ Open your browser and navigate to `http://localhost:3000`
 - Shows what changed
 - Streams updated document
 
-## 🏗️ Architecture
-
-### SSE Streaming Implementation
-
-The backend implements SSE streaming through Flask's `Response` with `stream_with_context`:
-
-```python
-def generate():
-    for chunk in response:
-        yield f"data: {json.dumps({'type': 'text', 'content': chunk})}\n\n"
-```
-
-The frontend consumes the stream using the Fetch API with a ReadableStream:
-
-```typescript
-const reader = response.body?.getReader()
-const decoder = new TextDecoder()
-
-while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    // Process chunk
-}
-```
-
-### Function Calling Flow
-
-1. User sends message
-2. Backend forwards to Gemini with function definitions
-3. Gemini decides if a function should be called
-4. Backend executes the function
-5. Backend sends function result back to Gemini
-6. Gemini generates natural language response
-7. Response is streamed to frontend
-
-### Memory Management
-
-Conversations are stored in-memory with unique IDs:
-- `conversations[id]` - Message history
-- `conversation_documents[id]` - Current document state
-
-## 📖 System Prompt Engineering
-
-### Prompt Structure
-
-The system prompt includes:
-
-1. **Role Definition** - Establishes AI as legal document assistant
-2. **Function Guidelines** - Detailed instructions for each function
-3. **Conversation Guidelines** - Natural interaction principles
-4. **Edge Case Handling** - Strategies for ambiguity and errors
-
-### Key Design Decisions
-
-1. **Detailed Function Descriptions** - Each function has clear use cases and examples
-2. **Conversational Tone** - Professional yet approachable language
-3. **Proactive Clarification** - AI asks for missing information
-4. **Context Awareness** - References previous exchanges
-5. **Error Handling** - Graceful degradation for edge cases
-
-See [PROMPT_ENGINEERING.md](./PROMPT_ENGINEERING.md) for detailed prompt iterations and improvements.
-
 ## 🧪 Testing the Application
 
 ### Test Scenario 1: Basic Document Generation
@@ -287,102 +223,3 @@ See [PROMPT_ENGINEERING.md](./PROMPT_ENGINEERING.md) for detailed prompt iterati
 2. Provide incomplete information
 3. Use ambiguous requests
 4. Verify AI handles gracefully
-
-## 🔒 Security Considerations
-
-⚠️ **This is a demo application**. For production use:
-
-- Add authentication and authorization
-- Implement rate limiting
-- Validate and sanitize all inputs
-- Use environment variables for secrets
-- Add HTTPS in production
-- Implement proper error logging
-- Add database for persistence
-- Review generated documents with legal professionals
-
-## 📝 API Documentation
-
-### POST /chat
-
-Endpoint for chat messages with SSE streaming.
-
-**Request:**
-```json
-{
-  "message": "User message",
-  "conversation_id": "optional-uuid"
-}
-```
-
-**Response:** SSE stream with events:
-- `type: text` - Text chunk
-- `type: function_call` - Function being called
-- `type: document` - Generated/updated document
-- `type: done` - Conversation complete
-- `type: error` - Error occurred
-
-### GET /conversations/:id
-
-Get conversation history and current document.
-
-### DELETE /conversations/:id
-
-Delete conversation and associated data.
-
-## 🎨 Design Philosophy
-
-The application follows modern design principles:
-
-- **Minimalism** - Clean interfaces without clutter
-- **Feedback** - Visual indicators for all actions
-- **Responsiveness** - Adapts to different screen sizes
-- **Accessibility** - Semantic HTML and ARIA labels
-- **Performance** - Optimized rendering and streaming
-
-## 🚧 Future Enhancements
-
-Potential improvements:
-
-- [ ] Database integration for persistent storage
-- [ ] User authentication and multi-user support
-- [ ] Document versioning and history
-- [ ] PDF export with formatting
-- [ ] More document templates
-- [ ] Advanced editing capabilities
-- [ ] Document comparison tool
-- [ ] Email/sharing functionality
-- [ ] Template customization
-- [ ] Multi-language support
-
-## 🤝 Contributing
-
-This is a technical challenge project. For production use cases:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
-
-## 📄 License
-
-MIT License - See LICENSE file for details
-
-## 🙏 Acknowledgments
-
-- Design inspiration from [transparently.ai](https://www.transparently.ai/)
-- Built with [Next.js](https://nextjs.org/), [Flask](https://flask.palletsprojects.com/), and [Google Gemini](https://deepmind.google/technologies/gemini/)
-- Icons by [Lucide](https://lucide.dev/)
-- Animations by [Framer Motion](https://www.framer.com/motion/)
-
-## 📞 Support
-
-For questions or issues:
-- Open an issue on GitHub
-- Review the documentation
-- Check the [PROMPT_ENGINEERING.md](./PROMPT_ENGINEERING.md) for prompt details
-
----
-
-**Built with ❤️ for the Lexiden Tech Challenge**

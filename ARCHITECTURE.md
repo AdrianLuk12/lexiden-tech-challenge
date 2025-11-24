@@ -8,52 +8,52 @@ This document describes the architecture of the Legal Document Assistant, a full
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         Frontend                             │
+│                         Frontend                            │
 │                    (Next.js 15.1.3)                         │
-│                                                              │
-│  ┌────────────────┐  ┌──────────────┐  ┌─────────────────┐│
-│  │ ChatInterface  │  │   Message    │  │ DocumentPreview ││
-│  │   Component    │  │  Component   │  │    Component    ││
-│  └────────────────┘  └──────────────┘  └─────────────────┘│
-│           │                   │                  │          │
-│           └───────────────────┴──────────────────┘          │
-│                             │                                │
-│                      SSE EventSource                         │
+│                                                             │
+│  ┌────────────────┐  ┌──────────────┐  ┌─────────────────┐  │
+│  │ ChatInterface  │  │   Message    │  │ DocumentPreview │  │
+│  │   Component    │  │  Component   │  │    Component    │  │
+│  └────────────────┘  └──────────────┘  └─────────────────┘  │
+│           │                 │                    │          │
+│           └─────────────────┴───────────────────┘          │
+│                             │                               │
+│                      SSE EventSource                        │
 └─────────────────────────────┬───────────────────────────────┘
                               │
                           HTTP/SSE
                               │
 ┌─────────────────────────────▼───────────────────────────────┐
-│                         Backend                              │
+│                         Backend                             │
 │                      (Flask 3.0.0)                          │
-│                                                              │
+│                                                             │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │                    Routes Layer                        │ │
-│  │  ┌─────────┐  ┌────────────┐  ┌────────────────────┐ │ │
-│  │  │ /health │  │   /chat    │  │ /conversations/:id │ │ │
-│  │  └─────────┘  └────────────┘  └────────────────────┘ │ │
+│  │  ┌─────────┐  ┌────────────┐  ┌────────────────────┐   │ │
+│  │  │ /health │  │   /chat    │  │ /conversations/:id │   │ │
+│  │  └─────────┘  └────────────┘  └────────────────────┘   │ │
 │  └────────────────────────────────────────────────────────┘ │
-│                              │                               │
+│                              │                              │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │                  Services Layer                        │ │
-│  │  ┌──────────────────────┐  ┌────────────────────────┐ │ │
-│  │  │  DocumentService     │  │ ConversationService    │ │ │
-│  │  │  - generate()        │  │ - add_message()        │ │ │
-│  │  │  - apply_edit()      │  │ - get_history()        │ │ │
-│  │  └──────────────────────┘  └────────────────────────┘ │ │
+│  │  ┌──────────────────────┐  ┌────────────────────────┐  │ │
+│  │  │  DocumentService     │  │ ConversationService    │  │ │
+│  │  │  - generate()        │  │ - add_message()        │  │ │
+│  │  │  - apply_edit()      │  │ - get_history()        │  │ │
+│  │  └──────────────────────┘  └────────────────────────┘  │ │
 │  └────────────────────────────────────────────────────────┘ │
-│                              │                               │
+│                              │                              │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │                    Models Layer                        │ │
-│  │  ┌──────────────────────────────────────────────────┐ │ │
-│  │  │         Function Schemas (FUNCTION_TOOLS)         │ │ │
-│  │  │  - extract_information                            │ │ │
-│  │  │  - generate_document                              │ │ │
-│  │  │  - apply_edits                                    │ │ │
-│  │  └──────────────────────────────────────────────────┘ │ │
+│  │  ┌──────────────────────────────────────────────────┐  │ │
+│  │  │         Function Schemas (FUNCTION_TOOLS)        │  │ │
+│  │  │  - extract_information                           │  │ │
+│  │  │  - generate_document                             │  │ │
+│  │  │  - apply_edits                                   │  │ │
+│  │  └──────────────────────────────────────────────────┘  │ │
 │  └────────────────────────────────────────────────────────┘ │
-│                              │                               │
-└──────────────────────────────┼───────────────────────────────┘
+│                              │                              │
+└──────────────────────────────┼──────────────────────────────┘
                                │
                           Gemini API
                                │
@@ -73,9 +73,9 @@ This document describes the architecture of the Legal Document Assistant, a full
 ```
 ┌──────────────────────────────────────────────────────────┐
 │ app.py (Entry Point)                                     │
-│  - Application factory                                    │
-│  - Blueprint registration                                 │
-│  - Server configuration                                   │
+│  - Application factory                                   │
+│  - Blueprint registration                                │
+│  - Server configuration                                  │
 └────────────────────────┬─────────────────────────────────┘
                          │
     ┌────────────────────┼────────────────────┐
@@ -284,27 +284,6 @@ documents = {
 - `conversation_service` instance
 - Single source of truth for state
 
-## Security Considerations
-
-### Current Implementation (Development)
-- No authentication
-- No rate limiting
-- CORS allows all origins
-- In-memory storage only
-
-### Production Requirements
-- [ ] Add authentication (JWT/OAuth)
-- [ ] Implement rate limiting
-- [ ] Restrict CORS origins
-- [ ] Add database persistence
-- [ ] Implement logging and monitoring
-- [ ] Add input validation and sanitization
-- [ ] Use HTTPS only
-- [ ] Add API key rotation
-- [ ] Implement session management
-
-## Performance Optimizations
-
 ### SSE Streaming
 - **Benefit**: Immediate feedback, no buffering
 - **Implementation**: Generator functions with yield
@@ -316,124 +295,3 @@ documents = {
 ### Async Processing
 - **Current**: Synchronous with threading
 - **Future**: Consider async/await for better concurrency
-
-## Testing Strategy
-
-### Unit Tests
-```
-services/
-  ├─ test_document_service.py
-  └─ test_conversation_service.py
-```
-
-### Integration Tests
-```
-routes/
-  └─ test_chat.py
-```
-
-### End-to-End Tests
-```
-tests/
-  └─ test_e2e.py
-```
-
-## Scalability Considerations
-
-### Current Limitations
-- Single server instance
-- In-memory state (not distributed)
-- No load balancing
-
-### Scaling Options
-
-1. **Horizontal Scaling**
-   - Add Redis for shared state
-   - Use message queue for async processing
-   - Deploy multiple instances behind load balancer
-
-2. **Database Integration**
-   - PostgreSQL for conversations
-   - MongoDB for documents
-   - Redis for session cache
-
-3. **Microservices**
-   - Separate document service
-   - Separate conversation service
-   - API gateway
-
-## Deployment Architecture (Production)
-
-```
-                    ┌──────────────┐
-                    │ Load Balancer │
-                    └───────┬──────┘
-                            │
-          ┌─────────────────┼─────────────────┐
-          │                 │                 │
-     ┌────▼────┐       ┌────▼────┐       ┌───▼─────┐
-     │ Flask 1 │       │ Flask 2 │       │ Flask N │
-     └────┬────┘       └────┬────┘       └────┬────┘
-          │                 │                  │
-          └─────────────────┼──────────────────┘
-                            │
-                    ┌───────▼────────┐
-                    │     Redis      │
-                    │ (Session Store)│
-                    └────────────────┘
-                            │
-                    ┌───────▼────────┐
-                    │   PostgreSQL   │
-                    │  (Persistence) │
-                    └────────────────┘
-```
-
-## Monitoring and Observability
-
-### Metrics to Track
-- Request latency
-- Function call frequency
-- Error rates
-- Conversation length
-- Document generation time
-
-### Logging
-- Request/response logging
-- Error logging
-- Function call logging
-- Performance logging
-
-### Tools
-- Prometheus for metrics
-- Grafana for visualization
-- ELK stack for log aggregation
-
-## Future Enhancements
-
-1. **Database Integration**
-   - Persistent storage
-   - Multi-user support
-   - Conversation history
-
-2. **Authentication**
-   - User accounts
-   - API keys
-   - OAuth integration
-
-3. **Advanced Features**
-   - Document versioning
-   - Collaboration
-   - Template customization
-   - PDF export
-
-4. **AI Improvements**
-   - Fine-tuned models
-   - Custom embeddings
-   - RAG for legal precedents
-
-## References
-
-- Flask Documentation: https://flask.palletsprojects.com/
-- Gemini API: https://ai.google.dev/
-- SSE Standard: https://html.spec.whatwg.org/multipage/server-sent-events.html
-- Next.js Documentation: https://nextjs.org/docs
