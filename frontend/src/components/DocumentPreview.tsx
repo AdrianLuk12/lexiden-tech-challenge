@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FileText, Download, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -13,11 +13,13 @@ interface DocumentPreviewProps {
 export default function DocumentPreview({ document, changes }: DocumentPreviewProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [showChanges, setShowChanges] = useState(false)
+  const currentUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
     // Clean up previous URL
-    if (pdfUrl) {
-      URL.revokeObjectURL(pdfUrl)
+    if (currentUrlRef.current) {
+      URL.revokeObjectURL(currentUrlRef.current)
+      currentUrlRef.current = null
     }
 
     if (document) {
@@ -30,9 +32,11 @@ export default function DocumentPreview({ document, changes }: DocumentPreviewPr
         }
         const blob = new Blob([bytes], { type: 'application/pdf' })
         const url = URL.createObjectURL(blob)
+        currentUrlRef.current = url
         setPdfUrl(url)
       } catch (error) {
         console.error('Error converting PDF:', error)
+        setPdfUrl(null)
       }
 
       // Show changes notification if there are changes
@@ -47,11 +51,12 @@ export default function DocumentPreview({ document, changes }: DocumentPreviewPr
 
     // Cleanup function
     return () => {
-      if (pdfUrl) {
-        URL.revokeObjectURL(pdfUrl)
+      if (currentUrlRef.current) {
+        URL.revokeObjectURL(currentUrlRef.current)
+        currentUrlRef.current = null
       }
     }
-  }, [pdfUrl, document, changes])
+  }, [document, changes])
 
   const handleDownload = () => {
     if (!document) return
