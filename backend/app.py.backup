@@ -406,7 +406,7 @@ def chat():
         try:
             # Initialize Gemini model with function calling
             model = genai.GenerativeModel(
-                model_name='gemini-2.0-flash-exp',
+                model_name='gemini-2.5-flash',
                 tools=tools,
                 system_instruction=SYSTEM_PROMPT
             )

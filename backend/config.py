@@ -13,7 +13,7 @@ class Config:
 
     # Gemini API
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-    GEMINI_MODEL = 'gemini-2.0-flash-exp'
+    GEMINI_MODEL = 'gemini-2.5-flash'
 
     # Flask
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')
@@ -21,7 +21,7 @@ class Config:
 
     # Server
     HOST = os.getenv('HOST', '0.0.0.0')
-    PORT = int(os.getenv('PORT', 5000))
+    PORT = int(os.getenv('FLASK_RUN_PORT', 5001))
 
     # CORS
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
