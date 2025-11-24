@@ -20,37 +20,77 @@ chat_bp = Blueprint('chat', __name__)
 genai.configure(api_key=Config.GEMINI_API_KEY)
 
 
-def convert_to_serializable(obj: Any) -> Any:
+def convert_to_serializable(obj: Any, depth: int = 0, max_depth: int = 20, visited: set = None) -> Any:
     """
     Recursively convert objects to JSON-serializable format.
 
     Handles Gemini's MapComposite and other non-serializable objects.
+    Prevents infinite recursion with depth limiting and circular reference tracking.
 
     Args:
         obj: Object to convert
+        depth: Current recursion depth
+        max_depth: Maximum allowed recursion depth
+        visited: Set of object IDs already visited (for circular reference detection)
 
     Returns:
         JSON-serializable version of the object
     """
+    # Prevent infinite recursion
+    if depth > max_depth:
+        return f"<max_depth_exceeded: {type(obj).__name__}>"
+
+    # Initialize visited set on first call
+    if visited is None:
+        visited = set()
+
+    # Check for primitive types first
     if obj is None or isinstance(obj, (str, int, float, bool)):
         return obj
 
-    if isinstance(obj, (list, tuple)):
-        return [convert_to_serializable(item) for item in obj]
+    # Check for circular references using object ID
+    obj_id = id(obj)
+    if obj_id in visited:
+        return f"<circular_ref: {type(obj).__name__}>"
 
-    if isinstance(obj, dict):
-        return {str(key): convert_to_serializable(value) for key, value in obj.items()}
+    # Add to visited set
+    visited.add(obj_id)
 
-    # Handle MapComposite and similar objects by converting to dict
-    if hasattr(obj, '__iter__') and hasattr(obj, 'keys'):
-        return {str(key): convert_to_serializable(obj[key]) for key in obj.keys()}
+    try:
+        # Handle lists and tuples
+        if isinstance(obj, (list, tuple)):
+            return [convert_to_serializable(item, depth + 1, max_depth, visited) for item in obj]
 
-    # Handle other objects with dict representation
-    if hasattr(obj, '__dict__'):
-        return convert_to_serializable(obj.__dict__)
+        # Handle regular dicts
+        if isinstance(obj, dict):
+            return {str(key): convert_to_serializable(value, depth + 1, max_depth, visited)
+                    for key, value in obj.items()}
 
-    # Fallback: convert to string
-    return str(obj)
+        # Handle MapComposite and similar dict-like objects (but not regular objects)
+        # Check for keys() and __getitem__ to identify dict-like objects
+        if hasattr(obj, 'keys') and hasattr(obj, '__getitem__') and not isinstance(obj, type):
+            try:
+                return {str(key): convert_to_serializable(obj[key], depth + 1, max_depth, visited)
+                        for key in obj.keys()}
+            except (TypeError, AttributeError):
+                pass
+
+        # Handle objects with __dict__ (but avoid infinite recursion)
+        if hasattr(obj, '__dict__') and not isinstance(obj, type):
+            try:
+                obj_dict = obj.__dict__
+                # Only recurse if it's a regular dict
+                if isinstance(obj_dict, dict):
+                    return convert_to_serializable(obj_dict, depth + 1, max_depth, visited)
+            except (TypeError, AttributeError):
+                pass
+
+        # Fallback: convert to string
+        return str(obj)
+
+    finally:
+        # Remove from visited set after processing (for non-circular paths)
+        visited.discard(obj_id)
 
 
 @chat_bp.route('/health', methods=['GET'])
