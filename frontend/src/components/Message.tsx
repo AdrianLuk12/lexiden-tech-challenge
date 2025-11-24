@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { User, Bot, Loader2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import type { Components } from 'react-markdown'
 import { cn } from '@/lib/utils'
 import { formatTimestamp } from '@/lib/utils'
 
@@ -20,6 +21,102 @@ interface MessageProps {
 
 export default function Message({ message, index }: MessageProps) {
   const isUser = message.role === 'user'
+
+  // Custom components for markdown rendering with proper types
+  const markdownComponents: Components = {
+    // Style code blocks - check className to determine if inline or block
+    code: ({ className, children, ...props }) => {
+      // Block code has a language class like 'language-javascript'
+      const isInline = !className || !className.startsWith('language-')
+
+      return isInline ? (
+        <code
+          className="bg-gray-200 text-primary px-1 py-0.5 rounded text-sm font-mono"
+          {...props}
+        >
+          {children}
+        </code>
+      ) : (
+        <code
+          className="block bg-gray-100 p-3 rounded-lg overflow-x-auto text-sm font-mono"
+          {...props}
+        >
+          {children}
+        </code>
+      )
+    },
+    // Style links
+    a: ({ children, ...props }) => (
+      <a
+        className="text-primary hover:underline"
+        target="_blank"
+        rel="noopener noreferrer"
+        {...props}
+      >
+        {children}
+      </a>
+    ),
+    // Style lists
+    ul: ({ children, ...props }) => (
+      <ul className="list-disc list-inside space-y-1 my-2" {...props}>
+        {children}
+      </ul>
+    ),
+    ol: ({ children, ...props }) => (
+      <ol className="list-decimal list-inside space-y-1 my-2" {...props}>
+        {children}
+      </ol>
+    ),
+    // Style paragraphs
+    p: ({ children, ...props }) => (
+      <p className="my-2 leading-relaxed" {...props}>
+        {children}
+      </p>
+    ),
+    // Style headers
+    h1: ({ children, ...props }) => (
+      <h1 className="text-xl font-bold mt-4 mb-2" {...props}>
+        {children}
+      </h1>
+    ),
+    h2: ({ children, ...props }) => (
+      <h2 className="text-lg font-bold mt-3 mb-2" {...props}>
+        {children}
+      </h2>
+    ),
+    h3: ({ children, ...props }) => (
+      <h3 className="text-base font-semibold mt-2 mb-1" {...props}>
+        {children}
+      </h3>
+    ),
+    // Style blockquotes
+    blockquote: ({ children, ...props }) => (
+      <blockquote
+        className="border-l-4 border-primary pl-4 my-2 italic text-gray-700"
+        {...props}
+      >
+        {children}
+      </blockquote>
+    ),
+    // Style tables
+    table: ({ children, ...props }) => (
+      <div className="overflow-x-auto my-2">
+        <table className="min-w-full border-collapse border border-gray-300" {...props}>
+          {children}
+        </table>
+      </div>
+    ),
+    th: ({ children, ...props }) => (
+      <th className="border border-gray-300 px-4 py-2 bg-gray-100 font-semibold" {...props}>
+        {children}
+      </th>
+    ),
+    td: ({ children, ...props }) => (
+      <td className="border border-gray-300 px-4 py-2" {...props}>
+        {children}
+      </td>
+    ),
+  }
 
   return (
     <motion.div
@@ -71,97 +168,7 @@ export default function Message({ message, index }: MessageProps) {
           <div className="text-text-primary prose prose-sm max-w-none">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
-              components={{
-                // Style code blocks
-                code: ({ node, inline, className, children, ...props }) => (
-                  inline ? (
-                    <code
-                      className="bg-gray-200 text-primary px-1 py-0.5 rounded text-sm font-mono"
-                      {...props}
-                    >
-                      {children}
-                    </code>
-                  ) : (
-                    <code
-                      className="block bg-gray-100 p-3 rounded-lg overflow-x-auto text-sm font-mono"
-                      {...props}
-                    >
-                      {children}
-                    </code>
-                  )
-                ),
-                // Style links
-                a: ({ node, children, ...props }) => (
-                  <a
-                    className="text-primary hover:underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    {...props}
-                  >
-                    {children}
-                  </a>
-                ),
-                // Style lists
-                ul: ({ node, children, ...props }) => (
-                  <ul className="list-disc list-inside space-y-1 my-2" {...props}>
-                    {children}
-                  </ul>
-                ),
-                ol: ({ node, children, ...props }) => (
-                  <ol className="list-decimal list-inside space-y-1 my-2" {...props}>
-                    {children}
-                  </ol>
-                ),
-                // Style paragraphs
-                p: ({ node, children, ...props }) => (
-                  <p className="my-2 leading-relaxed" {...props}>
-                    {children}
-                  </p>
-                ),
-                // Style headers
-                h1: ({ node, children, ...props }) => (
-                  <h1 className="text-xl font-bold mt-4 mb-2" {...props}>
-                    {children}
-                  </h1>
-                ),
-                h2: ({ node, children, ...props }) => (
-                  <h2 className="text-lg font-bold mt-3 mb-2" {...props}>
-                    {children}
-                  </h2>
-                ),
-                h3: ({ node, children, ...props }) => (
-                  <h3 className="text-base font-semibold mt-2 mb-1" {...props}>
-                    {children}
-                  </h3>
-                ),
-                // Style blockquotes
-                blockquote: ({ node, children, ...props }) => (
-                  <blockquote
-                    className="border-l-4 border-primary pl-4 my-2 italic text-gray-700"
-                    {...props}
-                  >
-                    {children}
-                  </blockquote>
-                ),
-                // Style tables
-                table: ({ node, children, ...props }) => (
-                  <div className="overflow-x-auto my-2">
-                    <table className="min-w-full border-collapse border border-gray-300" {...props}>
-                      {children}
-                    </table>
-                  </div>
-                ),
-                th: ({ node, children, ...props }) => (
-                  <th className="border border-gray-300 px-4 py-2 bg-gray-100 font-semibold" {...props}>
-                    {children}
-                  </th>
-                ),
-                td: ({ node, children, ...props }) => (
-                  <td className="border border-gray-300 px-4 py-2" {...props}>
-                    {children}
-                  </td>
-                ),
-              }}
+              components={markdownComponents}
             >
               {message.content}
             </ReactMarkdown>
