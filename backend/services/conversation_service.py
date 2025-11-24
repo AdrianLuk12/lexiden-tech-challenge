@@ -13,7 +13,8 @@ class ConversationService:
         """Initialize conversation storage."""
         # In-memory storage for conversations and documents
         self._conversations: Dict[str, List[Dict]] = {}
-        self._documents: Dict[str, str] = {}
+        # Store both PDF bytes and document data
+        self._documents: Dict[str, Dict] = {}  # {conversation_id: {pdf: bytes, data: dict}}
 
     def create_conversation(self) -> str:
         """
@@ -60,17 +61,21 @@ class ConversationService:
         """
         return self._conversations.get(conversation_id, [])
 
-    def set_document(self, conversation_id: str, document: str) -> None:
+    def set_document(self, conversation_id: str, pdf_bytes: bytes, doc_data: Dict) -> None:
         """
         Store document for a conversation.
 
         Args:
             conversation_id: Conversation ID
-            document: Document text
+            pdf_bytes: PDF document as bytes
+            doc_data: Document data dictionary for editing
         """
-        self._documents[conversation_id] = document
+        self._documents[conversation_id] = {
+            'pdf': pdf_bytes,
+            'data': doc_data
+        }
 
-    def get_document(self, conversation_id: str) -> Optional[str]:
+    def get_document(self, conversation_id: str) -> Optional[Dict]:
         """
         Get document for a conversation.
 
@@ -78,9 +83,22 @@ class ConversationService:
             conversation_id: Conversation ID
 
         Returns:
-            Document text if exists, None otherwise
+            Dictionary with 'pdf' (bytes) and 'data' (dict) if exists, None otherwise
         """
         return self._documents.get(conversation_id)
+
+    def get_document_data(self, conversation_id: str) -> Optional[Dict]:
+        """
+        Get just the document data (not PDF bytes) for a conversation.
+
+        Args:
+            conversation_id: Conversation ID
+
+        Returns:
+            Document data dictionary if exists, None otherwise
+        """
+        doc = self._documents.get(conversation_id)
+        return doc['data'] if doc else None
 
     def conversation_exists(self, conversation_id: str) -> bool:
         """

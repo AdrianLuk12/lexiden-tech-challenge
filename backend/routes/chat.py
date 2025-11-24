@@ -2,8 +2,10 @@
 Chat API routes with SSE streaming support.
 """
 import json
+import base64
 from typing import Any
-from flask import Blueprint, Response, request, stream_with_context
+from flask import Blueprint, Response, request, stream_with_context, send_file
+from io import BytesIO
 import google.generativeai as genai
 
 from config import Config
@@ -187,10 +189,10 @@ def chat():
                         func_args
                     )
 
-                    # Yield document if generated
-                    if function_result.get('document'):
+                    # Yield document if generated (PDF as base64)
+                    if function_result.get('pdf_base64'):
                         yield create_sse_response('document', {
-                            'content': function_result['document'],
+                            'pdf_base64': function_result['pdf_base64'],
                             'changes': function_result.get('changes')
                         })
 
@@ -298,15 +300,19 @@ def execute_function(conversation_id: str, func_name: str, func_args: dict) -> d
         doc_data = func_args.get('document_data', {})
 
         try:
-            # Generate document
-            generated_doc = DocumentService.generate(doc_type, doc_data)
+            # Generate document (returns PDF bytes and document data)
+            pdf_bytes, doc_data_dict = DocumentService.generate(doc_type, doc_data)
 
             # Store document
-            conversation_service.set_document(conversation_id, generated_doc)
+            conversation_service.set_document(conversation_id, pdf_bytes, doc_data_dict)
+
+            # Convert PDF to base64 for transmission
+            pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
 
             return {
                 'status': 'success',
-                'document': generated_doc
+                'message': 'Document generated successfully',
+                'pdf_base64': pdf_base64
             }
         except ValueError as e:
             return {
@@ -315,30 +321,40 @@ def execute_function(conversation_id: str, func_name: str, func_args: dict) -> d
             }
 
     elif func_name == 'apply_edits':
-        current_doc = conversation_service.get_document(conversation_id)
+        # Get current document data (not the PDF)
+        doc_data = conversation_service.get_document_data(conversation_id)
 
-        if current_doc:
+        if doc_data:
             edit_type = func_args.get('edit_type', '')
             field_name = func_args.get('field_name', '')
             new_value = func_args.get('new_value', '')
 
-            # Apply edit
-            updated_doc, changes = DocumentService.apply_edit(
-                current_doc,
-                edit_type,
-                field_name,
-                new_value
-            )
+            try:
+                # Apply edit and regenerate PDF
+                pdf_bytes, updated_doc_data, changes = DocumentService.apply_edit(
+                    doc_data,
+                    edit_type,
+                    field_name,
+                    new_value
+                )
 
-            # Store updated document
-            conversation_service.set_document(conversation_id, updated_doc)
+                # Store updated document
+                conversation_service.set_document(conversation_id, pdf_bytes, updated_doc_data)
 
-            return {
-                'status': 'success',
-                'changes': changes,
-                'updated_document': updated_doc,
-                'document': updated_doc
-            }
+                # Convert PDF to base64 for transmission
+                pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+
+                return {
+                    'status': 'success',
+                    'message': f'Document updated: {changes}',
+                    'changes': changes,
+                    'pdf_base64': pdf_base64
+                }
+            except ValueError as e:
+                return {
+                    'status': 'error',
+                    'message': str(e)
+                }
         else:
             return {
                 'status': 'error',

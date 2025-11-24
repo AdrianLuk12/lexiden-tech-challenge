@@ -171,7 +171,8 @@ export default function ChatInterface({ onDocumentUpdate, onDocumentChanges }: C
                 batchUpdateMessage(assistantMessageId, streamingTextRef.current)
 
               } else if (data.type === 'document') {
-                onDocumentUpdate(data.content)
+                // Handle PDF document (base64 encoded)
+                onDocumentUpdate(data.pdf_base64)
                 if (data.changes) {
                   onDocumentChanges(data.changes)
                 }
