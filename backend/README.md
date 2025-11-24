@@ -125,12 +125,3 @@ curl -X POST http://localhost:5001/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "I need an NDA"}'
 ```
-
-## Project Structure Benefits
-
-✅ **Separation of Concerns** - Each module has a single responsibility
-✅ **Easy Testing** - Services can be tested independently
-✅ **Better Maintainability** - Changes are localized
-✅ **Scalability** - Easy to add new features
-✅ **Code Reusability** - Services can be imported anywhere
-✅ **Clear Dependencies** - Module imports show relationships
