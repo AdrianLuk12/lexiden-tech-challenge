@@ -1,0 +1,568 @@
+import os
+import json
+import time
+from flask import Flask, Response, request, stream_with_context
+from flask_cors import CORS
+import google.generativeai as genai
+from typing import Dict, List, Optional
+import uuid
+
+app = Flask(__name__)
+CORS(app)
+
+# Configure Gemini API
+genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+
+# In-memory conversation storage
+conversations: Dict[str, List[Dict]] = {}
+
+# Define function declarations for Gemini
+tools = [
+    {
+        "function_declarations": [
+            {
+                "name": "extract_information",
+                "description": "Extract structured information from the conversation for legal document generation. Use this when you need to gather specific details like names, dates, positions, or other document parameters.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "document_type": {
+                            "type": "string",
+                            "description": "Type of legal document (e.g., 'director_appointment', 'nda', 'employment_agreement')"
+                        },
+                        "extracted_data": {
+                            "type": "object",
+                            "description": "Key-value pairs of extracted information",
+                            "properties": {}
+                        },
+                        "missing_fields": {
+                            "type": "array",
+                            "description": "List of required fields that are still missing",
+                            "items": {"type": "string"}
+                        }
+                    },
+                    "required": ["document_type", "extracted_data"]
+                }
+            },
+            {
+                "name": "generate_document",
+                "description": "Generate a complete legal document based on extracted information. Use this only when you have all required information to create a comprehensive document.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "document_type": {
+                            "type": "string",
+                            "description": "Type of legal document to generate"
+                        },
+                        "document_data": {
+                            "type": "object",
+                            "description": "All data needed to generate the document"
+                        }
+                    },
+                    "required": ["document_type", "document_data"]
+                }
+            },
+            {
+                "name": "apply_edits",
+                "description": "Apply specific edits to an existing document based on user requests. Use this when the user wants to modify, update, or change part of an already generated document.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "edit_type": {
+                            "type": "string",
+                            "description": "Type of edit (e.g., 'update_field', 'replace_section', 'add_clause')"
+                        },
+                        "field_name": {
+                            "type": "string",
+                            "description": "Name of the field or section to edit"
+                        },
+                        "new_value": {
+                            "type": "string",
+                            "description": "New value or content to apply"
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "Brief explanation of the edit"
+                        }
+                    },
+                    "required": ["edit_type", "field_name", "new_value"]
+                }
+            }
+        ]
+    }
+]
+
+# System prompt for the legal document assistant
+SYSTEM_PROMPT = """You are an expert legal document assistant AI designed to help users create professional legal documents through conversational interaction.
+
+**Your Role and Responsibilities:**
+1. Guide users through document creation by gathering necessary information conversationally
+2. Extract structured data from natural language conversations
+3. Generate complete, professional legal documents
+4. Apply precise edits to existing documents based on user requests
+5. Maintain context throughout the conversation
+
+**Function Usage Guidelines:**
+
+**extract_information:**
+- Use when gathering information from user responses
+- Call this function to structure data you've collected
+- If critical information is missing, note it in 'missing_fields' and ask the user
+- Examples of when to use:
+  * User mentions names, dates, positions, or other document parameters
+  * You need to organize collected information
+  * Before generating a document, to validate you have all required data
+
+**generate_document:**
+- Use ONLY when you have all required information for the document type
+- Generate complete, professional legal documents
+- Include proper formatting, clauses, and legal language
+- For director appointments: include name, effective date, committees, resolution number
+- For NDAs: include parties, effective date, term, confidentiality obligations
+- For employment agreements: include employee name, position, salary, start date, terms
+- Always format documents professionally with sections and clear structure
+
+**apply_edits:**
+- Use when user requests changes to an existing document
+- Specify exactly what is being changed and why
+- Examples of edit types:
+  * 'update_field': Change a specific value (date, name, amount)
+  * 'replace_section': Replace an entire section or clause
+  * 'add_clause': Add new content to the document
+- Be precise about what changed to enable highlighting
+
+**Conversation Guidelines:**
+1. Be professional yet conversational
+2. Ask for one or two pieces of information at a time (don't overwhelm users)
+3. Confirm information before generating documents
+4. If a request is ambiguous, ask clarifying questions
+5. After generating a document, offer to make changes or create another document
+6. Keep track of the document state throughout the conversation
+
+**Edge Cases to Handle:**
+- Missing critical information: Ask specific questions
+- Ambiguous requests: Seek clarification before acting
+- Multiple document types: Confirm which type the user wants
+- Invalid data: Politely request correct information
+- Document not yet generated: Inform user that changes require an existing document
+
+**Important:**
+- Never make up information - always ask the user
+- Maintain conversation context and refer to previous exchanges
+- Use natural language - avoid being overly formal or robotic
+- Stream responses to provide immediate feedback
+- When generating documents, ensure they are complete and professional
+
+Remember: You're helping users create legal documents efficiently while ensuring accuracy and completeness."""
+
+# Document templates and generation logic
+def generate_director_appointment(data: Dict) -> str:
+    """Generate a director appointment resolution"""
+    name = data.get('director_name', '[DIRECTOR NAME]')
+    effective_date = data.get('effective_date', '[EFFECTIVE DATE]')
+    committees = data.get('committees', '')
+    resolution_number = data.get('resolution_number', 'RES-2024-001')
+
+    committee_text = f" and appointed to the {committees}" if committees else ""
+
+    document = f"""
+BOARD RESOLUTION
+APPOINTMENT OF DIRECTOR
+
+Resolution Number: {resolution_number}
+Date: {effective_date}
+
+RESOLVED THAT:
+
+1. APPOINTMENT
+   {name} is hereby appointed as a Director of the Company, effective {effective_date}.
+
+2. AUTHORITY
+   The Director shall have all rights, powers, and responsibilities as set forth in the Company's
+   Articles of Incorporation and Bylaws.
+
+3. COMMITTEE ASSIGNMENTS
+   {name} is{committee_text if committee_text else " not assigned to any committees at this time"}.
+
+4. EFFECTIVE DATE
+   This resolution shall be effective as of {effective_date}.
+
+5. CERTIFICATION
+   The undersigned Secretary certifies that the foregoing resolution was duly adopted by the
+   Board of Directors and remains in full force and effect.
+
+Executed this day: {effective_date}
+
+_________________________________
+Corporate Secretary
+
+_________________________________
+Board Chairperson
+"""
+    return document.strip()
+
+def generate_nda(data: Dict) -> str:
+    """Generate a Non-Disclosure Agreement"""
+    party1 = data.get('party1_name', '[PARTY 1 NAME]')
+    party2 = data.get('party2_name', '[PARTY 2 NAME]')
+    effective_date = data.get('effective_date', '[EFFECTIVE DATE]')
+    term_years = data.get('term_years', '2')
+
+    document = f"""
+NON-DISCLOSURE AGREEMENT
+
+This Non-Disclosure Agreement ("Agreement") is entered into as of {effective_date} ("Effective Date")
+
+BETWEEN:
+
+{party1} ("Disclosing Party")
+
+AND:
+
+{party2} ("Receiving Party")
+
+WHEREAS the Disclosing Party possesses certain confidential and proprietary information; and
+
+WHEREAS the Receiving Party desires to receive such confidential information for legitimate business purposes;
+
+NOW THEREFORE, in consideration of the mutual covenants and agreements contained herein, the parties agree as follows:
+
+1. DEFINITION OF CONFIDENTIAL INFORMATION
+   "Confidential Information" means any and all technical and non-technical information disclosed by the
+   Disclosing Party, including but not limited to: trade secrets, business strategies, customer lists,
+   financial information, product designs, software, and any other proprietary information.
+
+2. OBLIGATIONS OF RECEIVING PARTY
+   The Receiving Party agrees to:
+   a) Hold all Confidential Information in strict confidence
+   b) Not disclose Confidential Information to any third party without prior written consent
+   c) Use Confidential Information solely for the agreed business purpose
+   d) Protect Confidential Information with the same degree of care used for its own confidential information
+
+3. TERM
+   This Agreement shall remain in effect for {term_years} years from the Effective Date.
+   The obligations regarding Confidential Information shall survive termination for an additional
+   {term_years} years.
+
+4. RETURN OF MATERIALS
+   Upon termination or upon request, the Receiving Party shall return or destroy all Confidential
+   Information and certify such destruction in writing.
+
+5. NO LICENSE
+   Nothing in this Agreement grants any license or right to the Receiving Party regarding
+   intellectual property of the Disclosing Party.
+
+6. GOVERNING LAW
+   This Agreement shall be governed by the laws of the applicable jurisdiction.
+
+IN WITNESS WHEREOF, the parties have executed this Agreement as of the Effective Date.
+
+_________________________________        _________________________________
+{party1}                                {party2}
+Disclosing Party                        Receiving Party
+
+Date: _______________                   Date: _______________
+"""
+    return document.strip()
+
+def generate_employment_agreement(data: Dict) -> str:
+    """Generate an Employment Agreement"""
+    employee_name = data.get('employee_name', '[EMPLOYEE NAME]')
+    company_name = data.get('company_name', '[COMPANY NAME]')
+    position = data.get('position', '[POSITION]')
+    start_date = data.get('start_date', '[START DATE]')
+    salary = data.get('salary', '[SALARY]')
+
+    document = f"""
+EMPLOYMENT AGREEMENT
+
+This Employment Agreement ("Agreement") is entered into as of {start_date}
+
+BETWEEN:
+
+{company_name} ("Company")
+
+AND:
+
+{employee_name} ("Employee")
+
+1. POSITION AND DUTIES
+   The Company hereby employs the Employee in the position of {position}. The Employee accepts such
+   employment and agrees to perform all duties and responsibilities associated with this position.
+
+2. COMPENSATION
+   The Company shall pay the Employee an annual salary of {salary}, payable in accordance with the
+   Company's standard payroll practices.
+
+3. START DATE
+   Employment shall commence on {start_date}.
+
+4. EMPLOYMENT RELATIONSHIP
+   This is an at-will employment relationship. Either party may terminate this agreement at any time,
+   with or without cause, with or without notice.
+
+5. DUTIES AND RESPONSIBILITIES
+   The Employee shall:
+   a) Devote their full business time and attention to the performance of their duties
+   b) Comply with all Company policies and procedures
+   c) Act in the best interests of the Company at all times
+   d) Not engage in any competing business activities
+
+6. CONFIDENTIALITY
+   The Employee acknowledges that during employment they will have access to confidential information
+   and trade secrets of the Company. The Employee agrees to maintain strict confidentiality of all
+   such information during and after employment.
+
+7. BENEFITS
+   The Employee shall be eligible for benefits in accordance with Company policies, including but not
+   limited to health insurance, paid time off, and retirement plans as applicable.
+
+8. TERMINATION
+   Either party may terminate this Agreement with written notice. Upon termination, the Employee shall:
+   a) Return all Company property
+   b) Continue to maintain confidentiality obligations
+   c) Receive final compensation for work performed through the termination date
+
+9. GOVERNING LAW
+   This Agreement shall be governed by the laws of the applicable jurisdiction.
+
+IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.
+
+_________________________________        _________________________________
+{company_name}                          {employee_name}
+Company Representative                   Employee
+
+Date: _______________                   Date: _______________
+"""
+    return document.strip()
+
+def apply_document_edit(current_document: str, edit_type: str, field_name: str, new_value: str) -> tuple[str, str]:
+    """Apply edits to a document and return (updated_document, change_description)"""
+    lines = current_document.split('\n')
+    updated_lines = []
+    changes = []
+
+    for i, line in enumerate(lines):
+        if field_name.lower() in line.lower():
+            old_line = line
+            # Try to replace the relevant part
+            if edit_type == 'update_field':
+                # Simple replacement strategy
+                updated_line = line
+                # Look for common patterns
+                if 'effective' in field_name.lower() or 'date' in field_name.lower():
+                    # Replace date patterns
+                    import re
+                    updated_line = re.sub(r'\[.*?DATE.*?\]|\d{4}-\d{2}-\d{2}|\w+ \d{1,2},? \d{4}', new_value, line)
+                elif 'name' in field_name.lower():
+                    # Replace name patterns
+                    import re
+                    updated_line = re.sub(r'\[.*?NAME.*?\]|(?<=: ).*$', new_value, line)
+                else:
+                    # Generic replacement
+                    updated_line = line.replace('['+field_name.upper()+']', new_value)
+
+                if updated_line != old_line:
+                    updated_lines.append(updated_line)
+                    changes.append(f"Line {i+1}: '{old_line.strip()}' → '{updated_line.strip()}'")
+                else:
+                    updated_lines.append(line)
+            else:
+                updated_lines.append(line)
+        else:
+            updated_lines.append(line)
+
+    updated_document = '\n'.join(updated_lines)
+    change_description = '; '.join(changes) if changes else f"Updated {field_name} to {new_value}"
+
+    return updated_document, change_description
+
+# Store current document state per conversation
+conversation_documents: Dict[str, str] = {}
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint"""
+    return {'status': 'healthy', 'message': 'Legal Document Assistant API is running'}
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    """Main chat endpoint with SSE streaming"""
+    data = request.json
+    user_message = data.get('message', '')
+    conversation_id = data.get('conversation_id', str(uuid.uuid4()))
+
+    # Initialize conversation history if new
+    if conversation_id not in conversations:
+        conversations[conversation_id] = []
+
+    # Add user message to history
+    conversations[conversation_id].append({
+        'role': 'user',
+        'parts': [user_message]
+    })
+
+    def generate():
+        try:
+            # Initialize Gemini model with function calling
+            model = genai.GenerativeModel(
+                model_name='gemini-2.5-flash',
+                tools=tools,
+                system_instruction=SYSTEM_PROMPT
+            )
+
+            # Create chat session with history
+            chat = model.start_chat(history=conversations[conversation_id][:-1])
+
+            # Send message and stream response
+            response = chat.send_message(user_message, stream=True)
+
+            accumulated_text = ""
+            function_calls = []
+
+            for chunk in response:
+                # Check for function calls
+                if chunk.candidates[0].content.parts:
+                    for part in chunk.candidates[0].content.parts:
+                        if hasattr(part, 'function_call') and part.function_call:
+                            function_calls.append(part.function_call)
+                        elif hasattr(part, 'text') and part.text:
+                            accumulated_text += part.text
+                            # Stream text chunks
+                            yield f"data: {json.dumps({'type': 'text', 'content': part.text})}\n\n"
+
+            # Handle function calls
+            if function_calls:
+                for func_call in function_calls:
+                    func_name = func_call.name
+                    func_args = dict(func_call.args)
+
+                    yield f"data: {json.dumps({'type': 'function_call', 'function': func_name, 'args': func_args})}\n\n"
+
+                    # Execute function
+                    function_result = None
+
+                    if func_name == 'extract_information':
+                        # Store extracted information
+                        function_result = {
+                            'status': 'success',
+                            'message': 'Information extracted successfully',
+                            'data': func_args
+                        }
+
+                    elif func_name == 'generate_document':
+                        doc_type = func_args.get('document_type', '')
+                        doc_data = func_args.get('document_data', {})
+
+                        # Generate appropriate document
+                        if 'director' in doc_type.lower() or 'appointment' in doc_type.lower():
+                            generated_doc = generate_director_appointment(doc_data)
+                        elif 'nda' in doc_type.lower() or 'non-disclosure' in doc_type.lower():
+                            generated_doc = generate_nda(doc_data)
+                        elif 'employment' in doc_type.lower():
+                            generated_doc = generate_employment_agreement(doc_data)
+                        else:
+                            generated_doc = f"Document type '{doc_type}' not fully implemented yet."
+
+                        # Store document
+                        conversation_documents[conversation_id] = generated_doc
+
+                        function_result = {
+                            'status': 'success',
+                            'document': generated_doc
+                        }
+
+                        # Stream the document
+                        yield f"data: {json.dumps({'type': 'document', 'content': generated_doc})}\n\n"
+
+                    elif func_name == 'apply_edits':
+                        if conversation_id in conversation_documents:
+                            current_doc = conversation_documents[conversation_id]
+                            edit_type = func_args.get('edit_type', '')
+                            field_name = func_args.get('field_name', '')
+                            new_value = func_args.get('new_value', '')
+
+                            updated_doc, changes = apply_document_edit(current_doc, edit_type, field_name, new_value)
+                            conversation_documents[conversation_id] = updated_doc
+
+                            function_result = {
+                                'status': 'success',
+                                'changes': changes,
+                                'updated_document': updated_doc
+                            }
+
+                            # Stream the updated document
+                            yield f"data: {json.dumps({'type': 'document', 'content': updated_doc, 'changes': changes})}\n\n"
+                        else:
+                            function_result = {
+                                'status': 'error',
+                                'message': 'No document exists to edit. Please generate a document first.'
+                            }
+
+                    # Send function result back to model for continuation
+                    if function_result:
+                        # Continue conversation with function result
+                        response2 = chat.send_message({
+                            'role': 'function',
+                            'parts': [{
+                                'function_response': {
+                                    'name': func_name,
+                                    'response': function_result
+                                }
+                            }]
+                        }, stream=True)
+
+                        for chunk in response2:
+                            if chunk.candidates[0].content.parts:
+                                for part in chunk.candidates[0].content.parts:
+                                    if hasattr(part, 'text') and part.text:
+                                        accumulated_text += part.text
+                                        yield f"data: {json.dumps({'type': 'text', 'content': part.text})}\n\n"
+
+            # Store assistant response in history
+            if accumulated_text:
+                conversations[conversation_id].append({
+                    'role': 'model',
+                    'parts': [accumulated_text]
+                })
+
+            # Send completion signal
+            yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id})}\n\n"
+
+        except Exception as e:
+            error_msg = f"Error: {str(e)}"
+            yield f"data: {json.dumps({'type': 'error', 'content': error_msg})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive'
+        }
+    )
+
+@app.route('/conversations/<conversation_id>', methods=['GET'])
+def get_conversation(conversation_id):
+    """Get conversation history"""
+    if conversation_id in conversations:
+        return {
+            'conversation_id': conversation_id,
+            'messages': conversations[conversation_id],
+            'document': conversation_documents.get(conversation_id)
+        }
+    return {'error': 'Conversation not found'}, 404
+
+@app.route('/conversations/<conversation_id>', methods=['DELETE'])
+def delete_conversation(conversation_id):
+    """Delete conversation history"""
+    if conversation_id in conversations:
+        del conversations[conversation_id]
+        if conversation_id in conversation_documents:
+            del conversation_documents[conversation_id]
+        return {'message': 'Conversation deleted'}
+    return {'error': 'Conversation not found'}, 404
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000, threaded=True)
