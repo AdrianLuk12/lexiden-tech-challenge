@@ -55,7 +55,7 @@ export default function DocumentPreview({ document, changes }: DocumentPreviewPr
             No Document Yet
           </h3>
           <p className="text-sm text-text-secondary max-w-xs">
-            Start a conversation to generate your legal document. The document will appear here as it's created.
+            Start a conversation to generate your legal document. The document will appear here as it&apos;s created.
           </p>
         </motion.div>
       </div>

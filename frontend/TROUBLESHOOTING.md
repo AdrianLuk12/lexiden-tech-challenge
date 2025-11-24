@@ -46,11 +46,22 @@ chmod +x setup.sh
 
 ### Issue 2: Deprecated Package Warnings
 
-The warnings about deprecated packages are non-critical:
-- `eslint@8` - Next.js 15.1.3 still uses ESLint 8 (will be updated in future versions)
-- `inflight`, `rimraf`, `glob` - Transitive dependencies that will be updated by Next.js
+The warnings about deprecated packages are non-critical and expected:
 
-These warnings don't affect functionality.
+**Why these warnings appear:**
+- `eslint@8` - Next.js 15.1.3 requires ESLint 8. ESLint 9 would break compatibility.
+- `inflight`, `rimraf`, `glob` - Transitive dependencies from Next.js that we don't control directly.
+- `@humanwhocodes/*` - Transitive dependencies from ESLint.
+
+**Solution:**
+We've added `overrides` in package.json to force newer versions where possible. However, some warnings may persist due to Next.js requirements.
+
+**Note:** These warnings are informational only and don't affect functionality. They will be resolved when Next.js upgrades to newer versions of these packages.
+
+**To suppress warnings during install:**
+```bash
+npm install --legacy-peer-deps --silent
+```
 
 ### Issue 3: Module Not Found After Installation
 
