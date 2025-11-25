@@ -16,7 +16,7 @@ This application demonstrates:
 ## 📁 Project Structure
 
 ```
-lexiden-tech-challenge/
+technical-challenge/
 ├── frontend/           # Next.js frontend application
 │   ├── src/
 │   │   ├── app/       # App Router pages
@@ -105,8 +105,8 @@ Three intelligent functions:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/AdrianLuk12/lexiden-tech-challenge.git
-cd lexiden-tech-challenge
+git clone [https://github.com/AdrianLuk12/tech-challenge.git](https://github.com/AdrianLuk12/technical-challenge.git)
+cd technical-challenge
 ```
 
 ### 2. Backend Setup
