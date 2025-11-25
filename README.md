@@ -105,7 +105,7 @@ Three intelligent functions:
 ### 1. Clone the Repository
 
 ```bash
-git clone [https://github.com/AdrianLuk12/tech-challenge.git](https://github.com/AdrianLuk12/technical-challenge.git)
+git clone https://github.com/AdrianLuk12/technical-challenge.git
 cd technical-challenge
 ```
 
