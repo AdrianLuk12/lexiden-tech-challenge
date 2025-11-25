@@ -6,11 +6,12 @@ import { FileText, Download, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DocumentPreviewProps {
-  document: string | null  // base64 encoded PDF
+  document: string | null  // base64 encoded PDF (preview)
+  documentDownload?: string | null // base64 encoded PDF (download)
   changes: string | null
 }
 
-export default function DocumentPreview({ document, changes }: DocumentPreviewProps) {
+export default function DocumentPreview({ document, documentDownload, changes }: DocumentPreviewProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [showChanges, setShowChanges] = useState(false)
   const currentUrlRef = useRef<string | null>(null)
@@ -59,11 +60,12 @@ export default function DocumentPreview({ document, changes }: DocumentPreviewPr
   }, [document, changes])
 
   const handleDownload = () => {
-    if (!document) return
+    const docToDownload = documentDownload || document
+    if (!docToDownload) return
 
     try {
       // Convert base64 to blob
-      const binaryString = atob(document)
+      const binaryString = atob(docToDownload)
       const bytes = new Uint8Array(binaryString.length)
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i)
@@ -115,18 +117,23 @@ export default function DocumentPreview({ document, changes }: DocumentPreviewPr
           <FileText className="w-5 h-5 text-primary" />
           <span className="font-medium text-text-primary">Generated Document</span>
         </div>
-        <button
-          onClick={handleDownload}
-          className={cn(
-            "px-4 py-2 rounded-lg font-medium text-sm",
-            "bg-primary text-white",
-            "hover:bg-primary-dark transition-colors",
-            "flex items-center gap-2 shadow-soft"
-          )}
-        >
-          <Download className="w-4 h-4" />
-          Download PDF
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 italic hidden sm:inline">
+            Note: Downloaded version has no highlights
+          </span>
+          <button
+            onClick={handleDownload}
+            className={cn(
+              "px-4 py-2 rounded-lg font-medium text-sm",
+              "bg-primary text-white",
+              "hover:bg-primary-dark transition-colors",
+              "flex items-center gap-2 shadow-soft"
+            )}
+          >
+            <Download className="w-4 h-4" />
+            Download PDF
+          </button>
+        </div>
       </div>
 
       {/* Changes Notification */}

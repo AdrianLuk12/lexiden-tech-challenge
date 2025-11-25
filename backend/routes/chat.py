@@ -4,6 +4,7 @@ Chat API routes with SSE streaming support.
 import json
 import base64
 from typing import Any
+from datetime import datetime, timedelta
 from flask import Blueprint, Response, request, stream_with_context, send_file
 from io import BytesIO
 import google.generativeai as genai
@@ -196,7 +197,8 @@ def chat():
                     # Yield document if generated (PDF as base64)
                     if function_result.get('pdf_base64'):
                         yield create_sse_response('document', {
-                            'pdf_base64': function_result['pdf_base64'],
+                            'pdf_base64': function_result.get('pdf_base64_preview', function_result['pdf_base64']),
+                            'pdf_base64_download': function_result.get('pdf_base64_download', function_result['pdf_base64']),
                             'changes': function_result.get('changes')
                         })
 
@@ -316,7 +318,9 @@ def execute_function(conversation_id: str, func_name: str, func_args: dict) -> d
             return {
                 'status': 'success',
                 'message': 'Document generated successfully',
-                'pdf_base64': pdf_base64
+                'pdf_base64': pdf_base64,
+                'pdf_base64_preview': pdf_base64,
+                'pdf_base64_download': pdf_base64
             }
         except ValueError as e:
             return {
@@ -335,24 +339,27 @@ def execute_function(conversation_id: str, func_name: str, func_args: dict) -> d
 
             try:
                 # Apply edit and regenerate PDF
-                pdf_bytes, updated_doc_data, changes = DocumentService.apply_edit(
+                pdf_preview, pdf_download, updated_doc_data, changes = DocumentService.apply_edit(
                     doc_data,
                     edit_type,
                     field_name,
                     new_value
                 )
 
-                # Store updated document
-                conversation_service.set_document(conversation_id, pdf_bytes, updated_doc_data)
+                # Store updated document (store the download version as the "official" one)
+                conversation_service.set_document(conversation_id, pdf_download, updated_doc_data)
 
                 # Convert PDF to base64 for transmission
-                pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+                pdf_base64_preview = base64.b64encode(pdf_preview).decode('utf-8')
+                pdf_base64_download = base64.b64encode(pdf_download).decode('utf-8')
 
                 return {
                     'status': 'success',
                     'message': f'Document updated: {changes}',
                     'changes': changes,
-                    'pdf_base64': pdf_base64
+                    'pdf_base64': pdf_base64_preview, # Legacy support if needed
+                    'pdf_base64_preview': pdf_base64_preview,
+                    'pdf_base64_download': pdf_base64_download
                 }
             except ValueError as e:
                 return {
@@ -364,6 +371,15 @@ def execute_function(conversation_id: str, func_name: str, func_args: dict) -> d
                 'status': 'error',
                 'message': 'No document exists to edit. Please generate a document first.'
             }
+
+    elif func_name == 'get_current_date':
+        # Just return the current date, let the LLM handle relative calculations
+        today = datetime.now()
+        return {
+            'status': 'success',
+            'date': today.strftime('%Y-%m-%d'),
+            'description': 'Current date'
+        }
 
     return {
         'status': 'error',

@@ -15,7 +15,7 @@ interface ChatMessage {
 }
 
 interface ChatInterfaceProps {
-  onDocumentUpdate: (document: string | null) => void
+  onDocumentUpdate: (document: string | null, documentDownload?: string | null) => void
   onDocumentChanges: (changes: string | null) => void
 }
 
@@ -172,7 +172,7 @@ export default function ChatInterface({ onDocumentUpdate, onDocumentChanges }: C
 
               } else if (data.type === 'document') {
                 // Handle PDF document (base64 encoded)
-                onDocumentUpdate(data.pdf_base64)
+                onDocumentUpdate(data.pdf_base64, data.pdf_base64_download)
                 if (data.changes) {
                   onDocumentChanges(data.changes)
                 }

@@ -8,7 +8,17 @@ import { FileText, MessageSquare } from 'lucide-react'
 
 export default function Home() {
   const [currentDocument, setCurrentDocument] = useState<string | null>(null)
+  const [downloadDocument, setDownloadDocument] = useState<string | null>(null)
   const [documentChanges, setDocumentChanges] = useState<string | null>(null)
+
+  const handleDocumentUpdate = (doc: string | null, downloadDoc?: string | null) => {
+    setCurrentDocument(doc)
+    if (downloadDoc) {
+      setDownloadDocument(downloadDoc)
+    } else {
+      setDownloadDocument(doc)
+    }
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-background-secondary to-accent-lightRed">
@@ -50,7 +60,7 @@ export default function Home() {
             </div>
             <div className="flex-1 overflow-hidden">
               <ChatInterface
-                onDocumentUpdate={setCurrentDocument}
+                onDocumentUpdate={handleDocumentUpdate}
                 onDocumentChanges={setDocumentChanges}
               />
             </div>
@@ -70,6 +80,7 @@ export default function Home() {
             <div className="flex-1 overflow-hidden">
               <DocumentPreview
                 document={currentDocument}
+                documentDownload={downloadDocument}
                 changes={documentChanges}
               />
             </div>

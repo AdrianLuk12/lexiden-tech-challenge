@@ -82,6 +82,14 @@ Examples:
                     },
                     "required": ["edit_type", "field_name", "new_value"]
                 }
+            },
+            {
+                "name": "get_current_date",
+                "description": "Get the current date. Use this to get today's date, then calculate any relative dates (like 'tomorrow' or 'next week') yourself.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
             }
         ]
     }

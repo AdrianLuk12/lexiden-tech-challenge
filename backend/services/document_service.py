@@ -102,10 +102,23 @@ class DocumentService:
 
         # Build story
         story = []
-        for text, style_name in content_blocks:
+        for block in content_blocks:
+            text = block[0]
+            style_name = block[1]
+            highlight = False
+            if len(block) > 2:
+                highlight = block[2]
+            
             style = style_map.get(style_name, normal_style)
-            # Escape special characters for reportlab
-            text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            
+            if highlight:
+                # Create a highlighted version of the style
+                style = ParagraphStyle(
+                    f'Highlighted{style_name}',
+                    parent=style,
+                    backColor=colors.yellow
+                )
+            
             story.append(Paragraph(text, style))
             if style_name in ['title', 'heading']:
                 story.append(Spacer(1, 0.2 * inch))
@@ -116,7 +129,7 @@ class DocumentService:
         return pdf_bytes
 
     @staticmethod
-    def generate_director_appointment(data: Dict) -> Tuple[bytes, Dict]:
+    def generate_director_appointment(data: Dict, highlight_field: str = None) -> Tuple[bytes, Dict]:
         """
         Generate a director appointment resolution as PDF.
 
@@ -126,6 +139,7 @@ class DocumentService:
                 - effective_date: Date of appointment
                 - committees: Committees to join (optional)
                 - resolution_number: Resolution number (optional)
+            highlight_field: Optional field name to highlight
 
         Returns:
             Tuple of (PDF bytes, document data dictionary)
@@ -183,7 +197,7 @@ class DocumentService:
         return pdf_bytes, doc_data
 
     @staticmethod
-    def generate_nda(data: Dict) -> Tuple[bytes, Dict]:
+    def generate_nda(data: Dict, highlight_field: str = None) -> Tuple[bytes, Dict]:
         """
         Generate a Non-Disclosure Agreement as PDF.
 
@@ -193,6 +207,7 @@ class DocumentService:
                 - party2_name: Second party name
                 - effective_date: Effective date
                 - term_years: Term in years (optional)
+            highlight_field: Optional field name to highlight
 
         Returns:
             Tuple of (PDF bytes, document data dictionary)
@@ -214,15 +229,15 @@ class DocumentService:
         content_blocks = [
             ("NON-DISCLOSURE AGREEMENT", 'title'),
             ("", 'normal'),
-            (f'This Non-Disclosure Agreement ("Agreement") is entered into as of {effective_date} ("Effective Date")', 'normal'),
+            (f'This Non-Disclosure Agreement ("Agreement") is entered into as of {effective_date} ("Effective Date")', 'normal', highlight_field == 'effective_date'),
             ("", 'normal'),
             ("BETWEEN:", 'heading'),
             ("", 'normal'),
-            (f'{party1} ("Disclosing Party")', 'normal'),
+            (f'{party1} ("Disclosing Party")', 'normal', highlight_field == 'party1_name'),
             ("", 'normal'),
             ("AND:", 'heading'),
             ("", 'normal'),
-            (f'{party2} ("Receiving Party")', 'normal'),
+            (f'{party2} ("Receiving Party")', 'normal', highlight_field == 'party2_name'),
             ("", 'normal'),
             ("WHEREAS the Disclosing Party possesses certain confidential and proprietary information; and", 'normal'),
             ("", 'normal'),
@@ -254,18 +269,19 @@ class DocumentService:
             ("", 'normal'),
             ("IN WITNESS WHEREOF, the parties have executed this Agreement as of the Effective Date.", 'normal'),
             ("", 'normal'),
-            ("_________________________________        _________________________________", 'signature'),
-            (f"{party1}                                {party2}", 'signature'),
-            ("Disclosing Party                        Receiving Party", 'signature'),
-            ("", 'normal'),
-            ("Date: _______________                   Date: _______________", 'signature'),
+            ("_________________________________", 'signature'),
+            (f"Disclosing Party: {party1}", 'signature', highlight_field == 'party1_name'),
+            ("Date: _______________", 'signature'),
+            ("_________________________________", 'signature'),
+            (f"Receiving Party: {party2}", 'signature', highlight_field == 'party2_name'),
+            ("Date: _______________", 'signature'),
         ]
 
         pdf_bytes = DocumentService._create_pdf(content_blocks, "Non-Disclosure Agreement")
         return pdf_bytes, doc_data
 
     @staticmethod
-    def generate_employment_agreement(data: Dict) -> Tuple[bytes, Dict]:
+    def generate_employment_agreement(data: Dict, highlight_field: str = None) -> Tuple[bytes, Dict]:
         """
         Generate an Employment Agreement as PDF.
 
@@ -276,6 +292,7 @@ class DocumentService:
                 - position: Job position
                 - start_date: Start date
                 - salary: Annual salary
+            highlight_field: Optional field name to highlight
 
         Returns:
             Tuple of (PDF bytes, document data dictionary)
@@ -299,24 +316,24 @@ class DocumentService:
         content_blocks = [
             ("EMPLOYMENT AGREEMENT", 'title'),
             ("", 'normal'),
-            (f"This Employment Agreement (\"Agreement\") is entered into as of {start_date}", 'normal'),
+            (f"This Employment Agreement (\"Agreement\") is entered into as of {start_date}", 'normal', highlight_field == 'start_date'),
             ("", 'normal'),
             ("BETWEEN:", 'heading'),
             ("", 'normal'),
-            (f'{company_name} ("Company")', 'normal'),
+            (f'{company_name} ("Company")', 'normal', highlight_field == 'company_name'),
             ("", 'normal'),
             ("AND:", 'heading'),
             ("", 'normal'),
-            (f'{employee_name} ("Employee")', 'normal'),
+            (f'{employee_name} ("Employee")', 'normal', highlight_field == 'employee_name'),
             ("", 'normal'),
             ("1. POSITION AND DUTIES", 'heading'),
-            (f"The Company hereby employs the Employee in the position of {position}. The Employee accepts such employment and agrees to perform all duties and responsibilities associated with this position.", 'normal'),
+            (f"The Company hereby employs the Employee in the position of {position}. The Employee accepts such employment and agrees to perform all duties and responsibilities associated with this position.", 'normal', highlight_field == 'position'),
             ("", 'normal'),
             ("2. COMPENSATION", 'heading'),
-            (f"The Company shall pay the Employee an annual salary of {salary}, payable in accordance with the Company's standard payroll practices.", 'normal'),
+            (f"The Company shall pay the Employee an annual salary of {salary}, payable in accordance with the Company's standard payroll practices.", 'normal', highlight_field == 'salary'),
             ("", 'normal'),
             ("3. START DATE", 'heading'),
-            (f"Employment shall commence on {start_date}.", 'normal'),
+            (f"Employment shall commence on {start_date}.", 'normal', highlight_field == 'start_date'),
             ("", 'normal'),
             ("4. EMPLOYMENT RELATIONSHIP", 'heading'),
             ("This is an at-will employment relationship. Either party may terminate this agreement at any time, with or without cause, with or without notice.", 'normal'),
@@ -345,18 +362,19 @@ class DocumentService:
             ("", 'normal'),
             ("IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.", 'normal'),
             ("", 'normal'),
-            ("_________________________________        _________________________________", 'signature'),
-            (f"{company_name}                          {employee_name}", 'signature'),
-            ("Company Representative                   Employee", 'signature'),
-            ("", 'normal'),
-            ("Date: _______________                   Date: _______________", 'signature'),
+            ("_________________________________", 'signature'),
+            (f"Company Representative: {company_name}", 'signature', highlight_field == 'company_name'),
+            ("Date: _______________", 'signature'),
+            ("_________________________________", 'signature'),
+            (f"Employee: {employee_name}", 'signature', highlight_field == 'employee_name'),
+            ("Date: _______________", 'signature'),
         ]
 
         pdf_bytes = DocumentService._create_pdf(content_blocks, "Employment Agreement")
         return pdf_bytes, doc_data
 
     @staticmethod
-    def generate_custom_document(data: Dict) -> Tuple[bytes, Dict]:
+    def generate_custom_document(data: Dict, highlight_field: str = None) -> Tuple[bytes, Dict]:
         """
         Generate a custom document based on provided data.
         This is a flexible method that can handle various custom document types.
@@ -368,6 +386,7 @@ class DocumentService:
                 - date: Document date (optional)
                 - parties: List of party names (optional)
                 - additional fields as needed
+            highlight_field: Optional field name to highlight
 
         Returns:
             Tuple of (PDF bytes, document data dictionary)
@@ -388,12 +407,12 @@ class DocumentService:
         }
 
         content_blocks = [
-            (title.upper(), 'title'),
+            (title.upper(), 'title', highlight_field == 'title'),
             ("", 'normal'),
         ]
 
         if doc_date:
-            content_blocks.append((f"Date: {doc_date}", 'normal'))
+            content_blocks.append((f"Date: {doc_date}", 'normal', highlight_field == 'date'))
             content_blocks.append(("", 'normal'))
 
         # Add parties if provided
@@ -401,22 +420,25 @@ class DocumentService:
             content_blocks.append(("PARTIES:", 'heading'))
             content_blocks.append(("", 'normal'))
             for party in parties:
-                content_blocks.append((party, 'normal'))
+                content_blocks.append((party, 'normal', highlight_field == 'parties'))
             content_blocks.append(("", 'normal'))
 
         # Add sections
         for i, section in enumerate(sections, 1):
             heading = section.get('heading', f'Section {i}')
             content = section.get('content', '')
+            
+            # Check if this section is being highlighted (by heading name)
+            is_highlighted = highlight_field == heading
 
-            content_blocks.append((f"{i}. {heading.upper()}", 'heading'))
+            content_blocks.append((f"{i}. {heading.upper()}", 'heading', is_highlighted))
 
             # Handle content that might be a list or a string
             if isinstance(content, list):
                 for item in content:
-                    content_blocks.append((item, 'bullet'))
+                    content_blocks.append((item, 'bullet', is_highlighted))
             else:
-                content_blocks.append((content, 'normal'))
+                content_blocks.append((content, 'normal', is_highlighted))
             content_blocks.append(("", 'normal'))
 
         # Add signature lines
@@ -437,7 +459,7 @@ class DocumentService:
         edit_type: str,
         field_name: str,
         new_value: Any
-    ) -> Tuple[bytes, Dict, str]:
+    ) -> Tuple[bytes, bytes, Dict, str]:
         """
         Apply edits to a document and regenerate PDF.
 
@@ -448,7 +470,7 @@ class DocumentService:
             new_value: New value to apply
 
         Returns:
-            Tuple of (updated PDF bytes, updated doc_data, change_description)
+            Tuple of (preview PDF bytes, download PDF bytes, updated doc_data, change_description)
         """
         # Make a copy to avoid modifying the original
         updated_data = doc_data.copy()
@@ -488,31 +510,37 @@ class DocumentService:
         doc_type = updated_data.get('type', 'custom')
 
         try:
+            # Generate preview with highlights
             if doc_type == 'director_appointment':
-                pdf_bytes, updated_data = DocumentService.generate_director_appointment(updated_data)
+                pdf_preview, _ = DocumentService.generate_director_appointment(updated_data, highlight_field=field_name)
+                pdf_download, updated_data = DocumentService.generate_director_appointment(updated_data, highlight_field=None)
             elif doc_type == 'nda':
-                pdf_bytes, updated_data = DocumentService.generate_nda(updated_data)
+                pdf_preview, _ = DocumentService.generate_nda(updated_data, highlight_field=field_name)
+                pdf_download, updated_data = DocumentService.generate_nda(updated_data, highlight_field=None)
             elif doc_type == 'employment_agreement':
-                pdf_bytes, updated_data = DocumentService.generate_employment_agreement(updated_data)
+                pdf_preview, _ = DocumentService.generate_employment_agreement(updated_data, highlight_field=field_name)
+                pdf_download, updated_data = DocumentService.generate_employment_agreement(updated_data, highlight_field=None)
             elif doc_type == 'custom':
-                pdf_bytes, updated_data = DocumentService.generate_custom_document(updated_data)
+                pdf_preview, _ = DocumentService.generate_custom_document(updated_data, highlight_field=field_name)
+                pdf_download, updated_data = DocumentService.generate_custom_document(updated_data, highlight_field=None)
             else:
                 raise ValueError(f"Unsupported document type: {doc_type}")
 
             change_description = '; '.join(changes) if changes else f"Updated {field_name}"
-            return pdf_bytes, updated_data, change_description
+            return pdf_preview, pdf_download, updated_data, change_description
 
         except Exception as e:
             raise ValueError(f"Error regenerating document: {str(e)}")
 
     @staticmethod
-    def generate(document_type: str, document_data: Dict) -> Tuple[bytes, Dict]:
+    def generate(document_type: str, document_data: Dict, highlight_field: str = None) -> Tuple[bytes, Dict]:
         """
         Generate a document based on type.
 
         Args:
             document_type: Type of document to generate
             document_data: Data for document generation
+            highlight_field: Optional field name to highlight
 
         Returns:
             Tuple of (PDF bytes, document data dictionary)
@@ -523,11 +551,11 @@ class DocumentService:
         document_type_lower = document_type.lower()
 
         if 'director' in document_type_lower or 'appointment' in document_type_lower:
-            return DocumentService.generate_director_appointment(document_data)
+            return DocumentService.generate_director_appointment(document_data, highlight_field)
         elif 'nda' in document_type_lower or 'non-disclosure' in document_type_lower:
-            return DocumentService.generate_nda(document_data)
+            return DocumentService.generate_nda(document_data, highlight_field)
         elif 'employment' in document_type_lower:
-            return DocumentService.generate_employment_agreement(document_data)
+            return DocumentService.generate_employment_agreement(document_data, highlight_field)
         else:
             # Try to generate a custom document for unknown types
-            return DocumentService.generate_custom_document(document_data)
+            return DocumentService.generate_custom_document(document_data, highlight_field)
