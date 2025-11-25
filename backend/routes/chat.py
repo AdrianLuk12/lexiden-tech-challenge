@@ -4,9 +4,8 @@ Chat API routes with SSE streaming support.
 import json
 import base64
 from typing import Any
-from datetime import datetime, timedelta
-from flask import Blueprint, Response, request, stream_with_context, send_file
-from io import BytesIO
+from datetime import datetime
+from flask import Blueprint, Response, request, stream_with_context
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
 

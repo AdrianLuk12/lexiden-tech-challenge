@@ -8,8 +8,8 @@ from typing import Dict, Tuple, Any
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib import colors
 
 
@@ -530,8 +530,9 @@ class DocumentService:
             return pdf_preview, pdf_download, updated_data, change_description
 
         except Exception as e:
-            raise ValueError(f"Error regenerating document: {str(e)}")
-
+            raise ValueError(
+                f"Error regenerating document of type '{doc_type}' during '{edit_type}' on field '{field_name}': {str(e)}"
+            )
     @staticmethod
     def generate(document_type: str, document_data: Dict, highlight_field: str = None) -> Tuple[bytes, Dict]:
         """

@@ -27,10 +27,7 @@ export default function DocumentPreview({ document, documentDownload, changes }:
       // Convert base64 to blob and create URL
       try {
         const binaryString = atob(document)
-        const bytes = new Uint8Array(binaryString.length)
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i)
-        }
+        const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0))
         const blob = new Blob([bytes], { type: 'application/pdf' })
         const url = URL.createObjectURL(blob)
         currentUrlRef.current = url
