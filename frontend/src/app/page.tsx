@@ -8,7 +8,17 @@ import { FileText, MessageSquare } from 'lucide-react'
 
 export default function Home() {
   const [currentDocument, setCurrentDocument] = useState<string | null>(null)
+  const [downloadDocument, setDownloadDocument] = useState<string | null>(null)
   const [documentChanges, setDocumentChanges] = useState<string | null>(null)
+
+  const handleDocumentUpdate = (doc: string | null, downloadDoc?: string | null) => {
+    setCurrentDocument(doc)
+    if (downloadDoc) {
+      setDownloadDocument(downloadDoc)
+    } else {
+      setDownloadDocument(doc)
+    }
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-background-secondary to-accent-lightRed">
@@ -19,8 +29,8 @@ export default function Home() {
         animate={{ y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+        <div className="max-w-[90%] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-medium">
                 <FileText className="w-6 h-6 text-white" />
@@ -35,7 +45,7 @@ export default function Home() {
       </motion.header>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-[90%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-180px)]">
           {/* Chat Section */}
           <motion.div
@@ -50,7 +60,7 @@ export default function Home() {
             </div>
             <div className="flex-1 overflow-hidden">
               <ChatInterface
-                onDocumentUpdate={setCurrentDocument}
+                onDocumentUpdate={handleDocumentUpdate}
                 onDocumentChanges={setDocumentChanges}
               />
             </div>
@@ -70,6 +80,7 @@ export default function Home() {
             <div className="flex-1 overflow-hidden">
               <DocumentPreview
                 document={currentDocument}
+                documentDownload={downloadDocument}
                 changes={documentChanges}
               />
             </div>

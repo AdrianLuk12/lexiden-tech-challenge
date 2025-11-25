@@ -2,9 +2,12 @@
 Chat API routes with SSE streaming support.
 """
 import json
+import base64
 from typing import Any
+from datetime import datetime
 from flask import Blueprint, Response, request, stream_with_context
 import google.generativeai as genai
+from google.generativeai.types import GenerationConfig
 
 from config import Config
 from models import FUNCTION_TOOLS
@@ -136,7 +139,10 @@ def chat():
             model = genai.GenerativeModel(
                 model_name=Config.GEMINI_MODEL,
                 tools=FUNCTION_TOOLS,
-                system_instruction=SYSTEM_PROMPT
+                system_instruction=SYSTEM_PROMPT,
+                generation_config=GenerationConfig(
+                    temperature=0.0
+                )
             )
 
             # Get conversation history (exclude the current message)
@@ -149,22 +155,30 @@ def chat():
             response = chat_session.send_message(user_message, stream=True)
 
             accumulated_text = ""
-            function_calls = []
+            
+            # Loop to handle chained function calls (e.g. get_date -> generate_document)
+            while True:
+                function_calls = []
 
-            # Process streaming response
-            for chunk in response:
-                if chunk.candidates[0].content.parts:
-                    for part in chunk.candidates[0].content.parts:
-                        # Handle function calls
-                        if hasattr(part, 'function_call') and part.function_call:
-                            function_calls.append(part.function_call)
-                        # Handle text
-                        elif hasattr(part, 'text') and part.text:
-                            accumulated_text += part.text
-                            yield create_sse_response('text', {'content': part.text})
+                # Process streaming response
+                for chunk in response:
+                    if chunk.candidates[0].content.parts:
+                        for part in chunk.candidates[0].content.parts:
+                            # Handle function calls
+                            if hasattr(part, 'function_call') and part.function_call:
+                                function_calls.append(part.function_call)
+                            # Handle text
+                            elif hasattr(part, 'text') and part.text:
+                                accumulated_text += part.text
+                                yield create_sse_response('text', {'content': part.text})
 
-            # Handle function calls
-            if function_calls:
+                # If no function calls, we are done with this turn
+                if not function_calls:
+                    break
+
+                # Prepare function responses
+                function_response_parts = []
+
                 for func_call in function_calls:
                     func_name = func_call.name
                     # Convert args to JSON-serializable format
@@ -187,31 +201,29 @@ def chat():
                         func_args
                     )
 
-                    # Yield document if generated
-                    if function_result.get('document'):
+                    # Yield document if generated (PDF as base64)
+                    if function_result.get('pdf_base64'):
                         yield create_sse_response('document', {
-                            'content': function_result['document'],
+                            'pdf_base64': function_result.get('pdf_base64_preview', function_result['pdf_base64']),
+                            'pdf_base64_download': function_result.get('pdf_base64_download', function_result['pdf_base64']),
                             'changes': function_result.get('changes')
                         })
 
-                    # Continue conversation with function result
-                    response2 = chat_session.send_message({
-                        'role': 'function',
-                        'parts': [{
-                            'function_response': {
-                                'name': func_name,
-                                'response': function_result
-                            }
-                        }]
-                    }, stream=True)
+                    # Add to response parts
+                    function_response_parts.append({
+                        'function_response': {
+                            'name': func_name,
+                            'response': function_result
+                        }
+                    })
 
-                    # Stream continuation
-                    for chunk in response2:
-                        if chunk.candidates[0].content.parts:
-                            for part in chunk.candidates[0].content.parts:
-                                if hasattr(part, 'text') and part.text:
-                                    accumulated_text += part.text
-                                    yield create_sse_response('text', {'content': part.text})
+                # Send all function results back to the model
+                response = chat_session.send_message({
+                    'role': 'function',
+                    'parts': function_response_parts
+                }, stream=True)
+                
+                # The loop will now process the model's response to these function results
 
             # Store assistant response
             if accumulated_text:
@@ -298,15 +310,21 @@ def execute_function(conversation_id: str, func_name: str, func_args: dict) -> d
         doc_data = func_args.get('document_data', {})
 
         try:
-            # Generate document
-            generated_doc = DocumentService.generate(doc_type, doc_data)
+            # Generate document (returns PDF bytes and document data)
+            pdf_bytes, doc_data_dict = DocumentService.generate(doc_type, doc_data)
 
             # Store document
-            conversation_service.set_document(conversation_id, generated_doc)
+            conversation_service.set_document(conversation_id, pdf_bytes, doc_data_dict)
+
+            # Convert PDF to base64 for transmission
+            pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
 
             return {
                 'status': 'success',
-                'document': generated_doc
+                'message': 'Document generated successfully',
+                'pdf_base64': pdf_base64,
+                'pdf_base64_preview': pdf_base64,
+                'pdf_base64_download': pdf_base64
             }
         except ValueError as e:
             return {
@@ -315,35 +333,57 @@ def execute_function(conversation_id: str, func_name: str, func_args: dict) -> d
             }
 
     elif func_name == 'apply_edits':
-        current_doc = conversation_service.get_document(conversation_id)
+        # Get current document data (not the PDF)
+        doc_data = conversation_service.get_document_data(conversation_id)
 
-        if current_doc:
+        if doc_data:
             edit_type = func_args.get('edit_type', '')
             field_name = func_args.get('field_name', '')
             new_value = func_args.get('new_value', '')
 
-            # Apply edit
-            updated_doc, changes = DocumentService.apply_edit(
-                current_doc,
-                edit_type,
-                field_name,
-                new_value
-            )
+            try:
+                # Apply edit and regenerate PDF
+                pdf_preview, pdf_download, updated_doc_data, changes = DocumentService.apply_edit(
+                    doc_data,
+                    edit_type,
+                    field_name,
+                    new_value
+                )
 
-            # Store updated document
-            conversation_service.set_document(conversation_id, updated_doc)
+                # Store updated document (store the download version as the "official" one)
+                conversation_service.set_document(conversation_id, pdf_download, updated_doc_data)
 
-            return {
-                'status': 'success',
-                'changes': changes,
-                'updated_document': updated_doc,
-                'document': updated_doc
-            }
+                # Convert PDF to base64 for transmission
+                pdf_base64_preview = base64.b64encode(pdf_preview).decode('utf-8')
+                pdf_base64_download = base64.b64encode(pdf_download).decode('utf-8')
+
+                return {
+                    'status': 'success',
+                    'message': f'Document updated: {changes}',
+                    'changes': changes,
+                    'pdf_base64': pdf_base64_preview, # Legacy support if needed
+                    'pdf_base64_preview': pdf_base64_preview,
+                    'pdf_base64_download': pdf_base64_download
+                }
+            except ValueError as e:
+                return {
+                    'status': 'error',
+                    'message': str(e)
+                }
         else:
             return {
                 'status': 'error',
                 'message': 'No document exists to edit. Please generate a document first.'
             }
+
+    elif func_name == 'get_current_date':
+        # Just return the current date, let the LLM handle relative calculations
+        today = datetime.now()
+        return {
+            'status': 'success',
+            'date': today.strftime('%Y-%m-%d'),
+            'description': 'Current date'
+        }
 
     return {
         'status': 'error',

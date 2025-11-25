@@ -1,22 +1,41 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FileText, Download, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DocumentPreviewProps {
-  document: string | null
+  document: string | null  // base64 encoded PDF (preview)
+  documentDownload?: string | null // base64 encoded PDF (download)
   changes: string | null
 }
 
-export default function DocumentPreview({ document, changes }: DocumentPreviewProps) {
-  const [highlightedDocument, setHighlightedDocument] = useState<string | null>(null)
+export default function DocumentPreview({ document, documentDownload, changes }: DocumentPreviewProps) {
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [showChanges, setShowChanges] = useState(false)
+  const currentUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
+    // Clean up previous URL
+    if (currentUrlRef.current) {
+      URL.revokeObjectURL(currentUrlRef.current)
+      currentUrlRef.current = null
+    }
+
     if (document) {
-      setHighlightedDocument(document)
+      // Convert base64 to blob and create URL
+      try {
+        const binaryString = atob(document)
+        const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0))
+        const blob = new Blob([bytes], { type: 'application/pdf' })
+        const url = URL.createObjectURL(blob)
+        currentUrlRef.current = url
+        setPdfUrl(url)
+      } catch (error) {
+        console.error('Error converting PDF:', error)
+        setPdfUrl(null)
+      }
 
       // Show changes notification if there are changes
       if (changes) {
@@ -24,21 +43,44 @@ export default function DocumentPreview({ document, changes }: DocumentPreviewPr
         const timeoutId = setTimeout(() => setShowChanges(false), 3000)
         return () => clearTimeout(timeoutId)
       }
+    } else {
+      setPdfUrl(null)
+    }
+
+    // Cleanup function
+    return () => {
+      if (currentUrlRef.current) {
+        URL.revokeObjectURL(currentUrlRef.current)
+        currentUrlRef.current = null
+      }
     }
   }, [document, changes])
 
   const handleDownload = () => {
-    if (!document) return
+    const docToDownload = documentDownload || document
+    if (!docToDownload) return
 
-    const blob = new Blob([document], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = window.document.createElement('a')
-    a.href = url
-    a.download = 'legal-document.txt'
-    window.document.body.appendChild(a)
-    a.click()
-    window.document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    try {
+      // Convert base64 to blob
+      const binaryString = atob(docToDownload)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      const blob = new Blob([bytes], { type: 'application/pdf' })
+
+      // Create download link
+      const url = URL.createObjectURL(blob)
+      const a = window.document.createElement('a')
+      a.href = url
+      a.download = 'legal-document.pdf'
+      window.document.body.appendChild(a)
+      a.click()
+      window.document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error downloading PDF:', error)
+    }
   }
 
   if (!document) {
@@ -72,18 +114,23 @@ export default function DocumentPreview({ document, changes }: DocumentPreviewPr
           <FileText className="w-5 h-5 text-primary" />
           <span className="font-medium text-text-primary">Generated Document</span>
         </div>
-        <button
-          onClick={handleDownload}
-          className={cn(
-            "px-4 py-2 rounded-lg font-medium text-sm",
-            "bg-primary text-white",
-            "hover:bg-primary-dark transition-colors",
-            "flex items-center gap-2 shadow-soft"
-          )}
-        >
-          <Download className="w-4 h-4" />
-          Download
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 italic hidden sm:inline">
+            Note: Downloaded version has no highlights
+          </span>
+          <button
+            onClick={handleDownload}
+            className={cn(
+              "px-4 py-2 rounded-lg font-medium text-sm",
+              "bg-primary text-white",
+              "hover:bg-primary-dark transition-colors",
+              "flex items-center gap-2 shadow-soft"
+            )}
+          >
+            <Download className="w-4 h-4" />
+            Download PDF
+          </button>
+        </div>
       </div>
 
       {/* Changes Notification */}
@@ -104,18 +151,20 @@ export default function DocumentPreview({ document, changes }: DocumentPreviewPr
         )}
       </AnimatePresence>
 
-      {/* Document Content */}
+      {/* PDF Viewer */}
       <motion.div
-        className="flex-1 overflow-y-auto p-6"
+        className="flex-1 overflow-hidden"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="document-preview bg-white rounded-lg p-6 shadow-soft border border-gray-200">
-          <pre className="whitespace-pre-wrap font-mono text-sm text-text-primary leading-relaxed">
-            {highlightedDocument}
-          </pre>
-        </div>
+        {pdfUrl && (
+          <iframe
+            src={pdfUrl}
+            className="w-full h-full border-0"
+            title="Document Preview"
+          />
+        )}
       </motion.div>
     </div>
   )

@@ -32,17 +32,26 @@ FUNCTION_TOOLS = [
             },
             {
                 "name": "generate_document",
-                "description": "Generate a complete legal document based on extracted information. Use this only when you have all required information to create a comprehensive document.",
+                "description": """Generate a complete legal document based on extracted information. Use this only when you have all required information to create a comprehensive document.
+
+For director appointments, include: director_name, effective_date, committees (optional), resolution_number (optional)
+For NDAs, include: party1_name, party2_name, effective_date, term_years (optional)
+For employment agreements, include: employee_name, company_name, position, start_date, salary
+For custom documents, include: title, sections (array of {heading, content}), date (optional), parties (optional array), and any other relevant fields""",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "document_type": {
                             "type": "string",
-                            "description": "Type of legal document to generate"
+                            "description": "Type of legal document to generate (e.g., 'director_appointment', 'nda', 'employment_agreement', or any custom type)"
                         },
                         "document_data": {
                             "type": "object",
-                            "description": "All data needed to generate the document"
+                            "description": """All data needed to generate the document. This should be a flat object with key-value pairs.
+Examples:
+- For director appointment: {"director_name": "John Doe", "effective_date": "2024-03-15", "committees": "Audit Committee", "resolution_number": "RES-2024-001"}
+- For NDA: {"party1_name": "Company A", "party2_name": "Company B", "effective_date": "2024-03-15", "term_years": "3"}
+- For employment: {"employee_name": "Jane Smith", "company_name": "Acme Corp", "position": "Senior Engineer", "start_date": "2024-04-01", "salary": "$150,000"}""",
                         }
                     },
                     "required": ["document_type", "document_data"]
@@ -72,6 +81,14 @@ FUNCTION_TOOLS = [
                         }
                     },
                     "required": ["edit_type", "field_name", "new_value"]
+                }
+            },
+            {
+                "name": "get_current_date",
+                "description": "Get the current date. Use this to get today's date, then calculate any relative dates (like 'tomorrow' or 'next week') yourself.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
                 }
             }
         ]
